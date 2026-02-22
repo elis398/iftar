@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>İftar & Sahur Geri Sayım</title>
+<style>
+    body {
+        margin:0;
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        height:100vh;
+        background-color:black;
+        color:white;
+        font-family: Helvetica, sans-serif;
+        font-size: 50px;
+        font-weight:bold;
+        text-align:center;
+    }
+    #geriSayim span {
+        display:inline-block;
+        min-width:60px;
+        transition: all 0.05s linear;
+    }
+</style>
+</head>
+<body>
+<div id="geriSayim">Yükleniyor...</div>
+
+<script>
+const CITY = "Istanbul";
+const COUNTRY = "Turkey";
+
+async function vakitGetir(tarih, vakit) {
+    const url = `https://api.aladhan.com/v1/timingsByCity/${tarih}?city=${CITY}&country=${COUNTRY}&method=13`;
+    const response = await fetch(url);
+    const data = await response.json();
+    const timeStr = data.data.timings[vakit]; // "HH:MM"
+    const [hour, minute] = timeStr.split(":").map(Number);
+    return {hour, minute};
+}
+
+async function geriSayim() {
+    const now = new Date();
+    const tarihStr = now.toLocaleDateString('tr-TR', {day:'2-digit', month:'2-digit', year:'numeric'}).replace(/\./g,'-');
+
+    let yaz = "İftara";
+
+    // Bugünkü iftar
+    let {hour: ifHour, minute: ifMinute} = await vakitGetir(tarihStr, "Maghrib");
+    let hedef = new Date(now.getFullYear(), now.getMonth(), now.getDate(), ifHour, ifMinute, 0);
+
+    if (now > hedef) {
+        // İftar geçti, yarın sahur
+        const yarin = new Date(now.getTime() + 24*60*60*1000);
+        const tarihY = yarin.toLocaleDateString('tr-TR', {day:'2-digit', month:'2-digit', year:'numeric'}).replace(/\./g,'-');
+        const {hour: saHour, minute: saMinute} = await vakitGetir(tarihY, "Fajr");
+        hedef = new Date(yarin.getFullYear(), yarin.getMonth(), yarin.getDate(), saHour, saMinute, 0);
+        yaz = "Sahura";
+    }
+
+    const farkMs = hedef - now;
+    const toplamSaniye = Math.max(farkMs/1000, 0);
+
+    const saat = Math.floor(toplamSaniye/3600);
+    const dakika = Math.floor((toplamSaniye % 3600)/60);
+    const saniye = Math.floor(toplamSaniye % 60);
+    const salise = Math.floor((toplamSaniye - Math.floor(toplamSaniye))*100);
+
+    // Saniyeyi kaydırma efekti
+    document.getElementById("geriSayim").innerHTML =
+        `${yaz} <span>${saat.toString().padStart(2,'0')}</span>:<span>${dakika.toString().padStart(2,'0')}</span>:<span>${saniye.toString().padStart(2,'0')}</span>`;
+
+    requestAnimationFrame(geriSayim); // 60fps, pürüzsüz animasyon
+}
+
+geriSayim();
+</script>
+</body>
+</html>
